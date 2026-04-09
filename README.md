@@ -1,5 +1,5 @@
 
-Project Scope
+## What is this - Project Scope
 
 An R Shiny dashboard for reviewing safety data from an early-phase clinical trial. Built using open-source pharmaverse packages and synthetic ADaM datasets — no real patient data.
 
