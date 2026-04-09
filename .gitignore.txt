@@ -1,0 +1,18 @@
+# Images
+*.png
+*.jpg
+*.jpeg
+
+# RStudio/R artifacts
+.Rproj.user/
+.RData
+.Rhistory
+
+# Obsidian
+.obsidian/
+
+# Roche prep files
+Roche - ADS/
+
+# Pasted images
+Pasted image*
