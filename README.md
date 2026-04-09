@@ -1,5 +1,5 @@
 
-## What is this?
+##What is this?
 
 An R Shiny dashboard for reviewing safety data from an early-phase clinical trial. Built using open-source pharmaverse packages and synthetic ADaM datasets — no real patient data.
 
@@ -26,9 +26,9 @@ Important filter: always start with `SAFFL == "Y"` (safety population — patien
 safetyscope/
 ├── SCOPE.md            # This file
 ├── app.R               # The Shiny dashboard (all tabs, all widgets)
-├── eda_tab1.R          # Explore adsl + adex for Tab 1
-├── eda_tab2.R          # Explore adae + adlb for Tab 2     [TODO]
-├── eda_tab3.R          # Explore all datasets for Tab 3    [TODO]
+├── eda_tab1.R          # Explore adsl for Tab 1
+├── eda_tab2.R          # Explore adae + adlb for Tab 2
+├── eda_tab3.R          # Explore all datasets for Tab 3
 ```
 
 Workflow: run the EDA script first to understand the data, then the Shiny app is just presentation.
@@ -108,29 +108,28 @@ _What happened to patients and is the drug damaging anything?_
 - Format: "n/total" where n = patients with both the AE and high lab, total = patients with that AE
 - Output: reactable table with descriptive subtitle
 - Key finding: lab abnormalities are mild (10-20%) and evenly spread — no specific organ is disproportionately hit. BILI is consistently low across all AEs (good — no liver failure signal). HGB is nearly zero (drug isn't affecting blood). The drug causes skin irritation but appears not systemically toxic.
+
 ### Tab 3 — Safety Summary
 
 _Is this drug safe? Give me the headline._
 
-**Widget 3.1 — Value Boxes**
+**Widget 3.1 — Safety Scorecard**
 
 - Data: `adsl` + `adae` + `adlb`
-- What it does: row of metric cards showing critical numbers at a glance — total patients, TEAE rate, SAE rate, discontinuation rate, deaths, Hy's Law cases
-- Output: value_box() components from bslib
+- What it does: three grouped cards summarizing the safety profile with drug-vs-placebo comparisons. Population & Retention (discontinuation rate, median days on treatment), Adverse Events (TEAE rate, most common AE, serious AEs, deaths), Lab Safety (Hy's Law cases with interpretation).
+- Output: bslib card() components with tags$strong(), tags$p(), tags$br() — no custom CSS
 
-**Widget 3.2 — Top 5 AEs**
+**Widget 3.3 — Key Findings**
 
-- Data: `adae`
-- What it does: small table showing the 5 most frequent preferred terms with incidence % per arm
-- Key columns: `USUBJID`, `ARM`, `AEDECOD`
-- Output: reactable table
-
-**Widget 3.3 — Patient Listing Table**
-
-- Data: `adsl`
-- What it does: one row per patient — ID, arm, age, sex, days on treatment, status. Sortable and searchable. Moved from Tab 1.
-- Key columns: `USUBJID`, `ARM`, `AGE`, `SEX`, `TRTDURD`, `EOSSTT`
-- Output: interactive table via reactable
+- Data: `adsl` + `adae` + `adlb`
+- What it does: auto-generated bullet points summarizing the safety narrative. Five findings computed from filtered data: AE rate difference (drug vs placebo), top 3 most common AEs, serious AE and death counts, discontinuation rate and treatment duration difference, Hy's Law assessment.
+- Output: bslib card() with tags$ul() / tags$li() — no custom CSS
+- Key findings from synthetic data:
+    - Drug arms had ~90% TEAE rate vs ~76% placebo
+    - Top AEs are all skin/application site related (pruritus, erythema, rash)
+    - Serious AEs rare (0-2.4% per arm)
+    - Drug-arm patients discontinued at ~69% vs ~33% placebo, ~105 fewer days on treatment
+    - 1 Hy's Law case detected
 
 ## Widget-to-Dataset Map
 
@@ -143,21 +142,24 @@ _Is this drug safe? Give me the headline._
 |2.2 AE Incidence by PT|✓|✓|||
 |2.3 Severity Heatmap||✓|||
 |2.4 Hy's Law Plot||||✓|
-|3.1 Value Boxes|✓|✓||✓|
-|3.2 Top 5 AEs|✓|✓|||
-|3.3 Patient Listing Table|✓||||
+|2.5 AE & Lab Correlation||✓||✓|
+|3.1 Safety Scorecard|✓|✓||✓|
+|3.3 Key Findings|✓|✓||✓|
 
 ## Build Order
 
 1. Tab 1 widgets (adsl only) ✓
 2. Tab 2 widgets (adae + adlb) ✓
-3. Tab 3 widgets (summary) ← **we are here**
+3. Tab 3 widgets (summary across all datasets) ✓
 
 ## Tech Stack
 
 |What|Package|
 |---|---|
 |Data|`pharmaverseadam`|
+|App framework|`shiny` + `bslib`|
+|Tables|`rtables`, `reactable`|
+|Plots|`ggplot2` + `plotly`|
 |App framework|`shiny` + `bslib`|
 |Tables|`rtables`, `reactable`|
 |Plots|`ggplot2` + `plotly`|
