@@ -36,27 +36,46 @@ library(pharmaverseadam)
 
 # --- Data prep ----------------------------------------------------------------
 
+# Shorten arm labels for cleaner plots
+shorten_arm <- function(x) {
+  dplyr::case_match(x,
+                    "Xanomeline High Dose" ~ "High Dose",
+                    "Xanomeline Low Dose"  ~ "Low Dose",
+                    .default = x
+  )
+}
+
 # Tab 1: adsl only
 adsl_safety <- pharmaverseadam::adsl %>%
   filter(SAFFL == "Y") %>%
+  mutate(ARM = shorten_arm(ARM)) %>%
   select(USUBJID, ARM, AGE, SEX, RACE, EOSSTT, TRTDURD)
 
 # Tab 2: adae (treatment-emergent, safety pop) + adsl for denominator
 adae_te <- pharmaverseadam::adae %>%
-  filter(SAFFL == "Y", TRTEMFL == "Y")
+  filter(SAFFL == "Y", TRTEMFL == "Y") %>%
+  mutate(ARM = shorten_arm(ARM))
 
 adsl_denom <- pharmaverseadam::adsl %>%
   filter(SAFFL == "Y") %>%
-  mutate(ARM = factor(ARM))
+  mutate(ARM = factor(shorten_arm(ARM)))
 
 # Tab 2: adlb (lab data, safety pop)
 adlb <- pharmaverseadam::adlb %>%
-  filter(SAFFL == "Y")
+  filter(SAFFL == "Y") %>%
+  mutate(ARM = shorten_arm(ARM))
 
 # --- UI -----------------------------------------------------------------------
 ui <- page_navbar(
-  title = "SafetyScope",
-  theme = bs_theme(version = 5, bootswatch = "flatly"),
+  title = tags$span("SafetyScope",
+                    tags$small(" | Xanomeline Safety Review", style = "font-weight: 300;")
+  ),
+  theme = bs_theme(
+    version    = 5,
+    preset     = "shiny",
+    font_scale = 0.9
+  ),
+  fillable = FALSE,
   
   sidebar = sidebar(
     title = "Filters",
@@ -78,17 +97,21 @@ ui <- page_navbar(
   # ============================================================================
   # TAB 1 — Population & Exposure
   # ============================================================================
-  nav_panel("Population & Exposure",
-            navset_card_tab(
-              nav_panel("Sex & Race",
-                        plotlyOutput("demo_chart", height = "300px")
+  nav_panel("Population & Exposure", class = "bslib-page-dashboard",
+            layout_columns(
+              col_widths = c(6, 6),
+              card(
+                card_header("Sex & Race Distribution"),
+                plotlyOutput("demo_chart", height = "280px")
               ),
-              nav_panel("Disposition",
-                        plotlyOutput("disposition_chart", height = "300px")
-              ),
-              nav_panel("Treatment Duration",
-                        plotlyOutput("exposure_boxplot", height = "300px")
+              card(
+                card_header("Patient Disposition"),
+                plotlyOutput("disposition_chart", height = "280px")
               )
+            ),
+            card(
+              card_header("Treatment Duration by Arm"),
+              plotlyOutput("exposure_boxplot", height = "280px")
             )
   ),
   
@@ -97,29 +120,47 @@ ui <- page_navbar(
   # ============================================================================
   nav_panel("Adverse Events & Lab Safety",
             navset_card_tab(
-              nav_panel("AE Summary",
-                        uiOutput("ae_summary_table")
-              ),
-              nav_panel("AE by Preferred Term",
-                        plotlyOutput("butterfly_plot", height = "500px"),
-                        sliderInput("top_n_pts", "Number of terms to show",
-                                    min = 5, max = 25, value = 10, step = 1)
-              ),
-              nav_panel("Severity Heatmap",
-                        plotlyOutput("severity_heatmap", height = "500px"),
-                        sliderInput("top_n_heatmap", "Number of terms to show",
-                                    min = 5, max = 25, value = 10, step = 1)
-              ),
-              nav_panel("Hy's Law",
-                        plotlyOutput("hys_law_plot", height = "400px")
-              ),
-              nav_panel("AE & Lab Correlation",
-                        p(style = "color: #555; font-size: 14px; margin-bottom: 10px;",
-                          "For each adverse event: out of patients who experienced it, ",
-                          "how many also had lab results above the normal range during treatment? ",
-                          "Format: patients with high lab / total patients with that AE."
+              # --- Sub-tab: Adverse Events ---
+              nav_panel("Adverse Events", class = "bslib-page-dashboard",
+                        card(
+                          card_header("AE Summary"),
+                          uiOutput("ae_summary_table")
                         ),
-                        reactableOutput("ae_lab_corr")
+                        layout_columns(
+                          col_widths = c(6, 6),
+                          card(
+                            card_header("AE by Preferred Term"),
+                            plotlyOutput("butterfly_plot", height = "400px"),
+                            sliderInput("top_n_pts", "Number of terms to show",
+                                        min = 5, max = 25, value = 10, step = 1)
+                          ),
+                          card(
+                            card_header("Severity Heatmap"),
+                            plotlyOutput("severity_heatmap", height = "400px"),
+                            sliderInput("top_n_heatmap", "Number of terms to show",
+                                        min = 5, max = 25, value = 10, step = 1)
+                          )
+                        )
+              ),
+              # --- Sub-tab: Lab Safety ---
+              nav_panel("Lab Safety", class = "bslib-page-dashboard",
+                        layout_columns(
+                          col_widths = c(6, 6),
+                          card(
+                            card_header("Hy's Law Plot"),
+                            plotlyOutput("hys_law_plot", height = "350px")
+                          ),
+                          card(
+                            card_header("AE & Lab Correlation"),
+                            card_body(
+                              tags$p(tags$small(
+                                "For each AE: how many patients also had lab results above normal?",
+                                "ALT/AST/BILI = Liver, CREAT = Kidney, HGB = Blood."
+                              )),
+                              reactableOutput("ae_lab_corr")
+                            )
+                          )
+                        )
               )
             )
   ),
@@ -127,11 +168,8 @@ ui <- page_navbar(
   # ============================================================================
   # TAB 3 — Safety Summary
   # ============================================================================
-  nav_panel("Safety Summary",
-            # --- Widget 3.1: Safety Scorecard -------------------------------------------
+  nav_panel("Safety Summary", class = "bslib-page-dashboard",
             uiOutput("safety_scorecard"),
-            
-            # --- Widget 3.3: Key Findings -----------------------------------------------
             uiOutput("key_findings")
   )
 )
@@ -197,8 +235,8 @@ server <- function(input, output, session) {
       geom_boxplot() +
       scale_fill_manual(values = c(
         "Placebo"              = "#7A8B99",
-        "Xanomeline High Dose" = "#5B8C85",
-        "Xanomeline Low Dose"  = "#8A9A82"
+        "High Dose" = "#5B8C85",
+        "Low Dose"  = "#8A9A82"
       )) +
       labs(x = NULL, y = "Days on Treatment") +
       guides(fill = "none") +
@@ -307,8 +345,8 @@ server <- function(input, output, session) {
       coord_flip() +
       scale_fill_manual(values = c(
         "Placebo"               = "#7A8B99",
-        "Xanomeline High Dose"  = "#5B8C85",
-        "Xanomeline Low Dose"   = "#8A9A82"
+        "High Dose"  = "#5B8C85",
+        "Low Dose"   = "#8A9A82"
       )) +
       labs(x = NULL, y = "Incidence (%)", fill = "Arm") +
       theme_minimal()
@@ -391,8 +429,8 @@ server <- function(input, output, session) {
       geom_point(size = 3, alpha = 0.7) +
       scale_color_manual(values = c(
         "Placebo"               = "#7A8B99",
-        "Xanomeline High Dose"  = "#5B8C85",
-        "Xanomeline Low Dose"   = "#8A9A82"
+        "High Dose"  = "#5B8C85",
+        "Low Dose"   = "#8A9A82"
       )) +
       labs(x = "Peak ALT (×ULN)", y = "Peak Bilirubin (×ULN)", color = "Arm") +
       theme_minimal()
@@ -445,14 +483,15 @@ server <- function(input, output, session) {
     
     reactable(
       corr_wide,
+      compact  = TRUE,
       columns = list(
-        `Preferred Term`  = colDef(minWidth = 220, align = "center"),
-        `Patients with AE` = colDef(minWidth = 80, align = "center"),
-        ALT   = colDef(name = "High ALT (Liver)", minWidth = 110, align = "center"),
-        AST   = colDef(name = "High AST (Liver)", minWidth = 110, align = "center"),
-        BILI  = colDef(name = "High BILI (Liver)", minWidth = 110, align = "center"),
-        CREAT = colDef(name = "High CREAT (Kidney)", minWidth = 120, align = "center"),
-        HGB   = colDef(name = "High HGB (Blood)", minWidth = 110, align = "center")
+        `Preferred Term`   = colDef(minWidth = 160, align = "center"),
+        `Patients with AE` = colDef(name = "n", minWidth = 40, align = "center"),
+        ALT   = colDef(minWidth = 80, align = "center"),
+        AST   = colDef(minWidth = 80, align = "center"),
+        BILI  = colDef(minWidth = 80, align = "center"),
+        CREAT = colDef(minWidth = 80, align = "center"),
+        HGB   = colDef(minWidth = 80, align = "center")
       ),
       striped   = TRUE,
       highlight = TRUE,
